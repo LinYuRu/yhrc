@@ -262,7 +262,7 @@
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>新增會員資料</h5>
+                <h5 class="modal-title" id="memberModalTitle"><i class="bi bi-person-plus me-2"></i>新增會員資料</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
@@ -280,6 +280,10 @@
                         <div class="col-md-6">
                             <label class="form-label fw-bold">出生年月日</label>
                             <input type="date" id="m-birth_date" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">入會日期</label>
+                            <input type="date" id="m-join_date" class="form-control">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">電話</label>
@@ -423,7 +427,7 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 bg-light p-3 rounded border">
         <div class="row g-2 align-items-center flex-grow-1 me-md-2" style="max-width: 80%;">
             <div class="col-12 col-md-4">
-                <input type="text" id="attendance-search" class="form-control" placeholder="搜尋姓名、組別、活動名稱...">
+                <input type="text" id="attendance-search" class="form-control" placeholder="搜尋姓名、活動名稱...">
             </div>
             <div class="col-4 col-md-2">
                 <select id="attendance-year-filter" class="form-select">
@@ -486,7 +490,6 @@
                 <th>姓名</th>
                 <th>組別</th>
                 <th>活動名稱 / 日期</th>
-                <th>簽到時間</th>
                 <th>狀態</th>
                 <th>備註/請假事由</th>
             </tr>
@@ -728,6 +731,8 @@ function openMemberModal() {
    $('#m-gear-vest').val(0);
    $('#m-gear-long').val(0);
    $('#m-gear-short').val(0);
+   $('#m-join_date').prop('disabled', false);
+   $('#memberModalTitle').html('<i class="bi bi-person-plus me-2"></i>新增會員資料');
    memberModal.show();
 }
 
@@ -738,6 +743,16 @@ function openEditMemberModal(memberStr) {
    $('#m-name').val(member.name || '');
    $('#m-gender').val(member.gender || '');
    $('#m-birth_date').val(member.birth_date || '');
+   
+   // 處理入會日期與 disabled 狀態
+   const joinDate = member.join_date || '';
+   $('#m-join_date').val(joinDate);
+   if (joinDate) {
+      $('#m-join_date').prop('disabled', true); // 當入會日期已有資料時鎖定欄位
+   } else {
+      $('#m-join_date').prop('disabled', false); // 若無資料則允許編輯
+   }
+
    $('#m-phone').val(member.phone || '');
    $('#m-email').val(member.email || '');
    $('#m-category').val(member.category || 'Applicant');
@@ -754,6 +769,7 @@ function openEditMemberModal(memberStr) {
    $('#m-gear-long').val(gear.long_sleeve !== undefined ? gear.long_sleeve : 0);
    $('#m-gear-short').val(gear.short_sleeve !== undefined ? gear.short_sleeve : 0);
    
+   $('#memberModalTitle').html('<i class="bi bi-pencil-square me-2"></i>編輯會員資料');
    memberModal.show();
 }
 
@@ -789,22 +805,23 @@ async function submitMember() {
    }
 
    const payload = {
-    name,
-    email,
-    birth_date,
-    gender: $('#m-gender').val() || null,
-    phone: $('#m-phone').val().trim() || null,
-    category: $('#m-category').val(),
-    group_number: $('#m-group_number').val() ? parseInt($('#m-group_number').val()) : null,
-    address: $('#m-address').val().trim() || null,
-    is_student: $('#m-is_student').prop('checked'),
-    entrance_fee_paid: $('#m-entrance_fee_paid').prop('checked'),
-    annual_fee_paid_until: annual_fee_paid_until,
-    is_next_year_free: is_next_year_free,
-    is_lead: $('#m-is_lead').prop('checked'), // 新增：是否為組長
-    gear_received_json: gear_received_json,
-    updated_by: operatorName
-};
+      name,
+      email,
+      birth_date,
+      join_date: $('#m-join_date').val() || null, // 新增：收集入會日期
+      gender: $('#m-gender').val() || null,
+      phone: $('#m-phone').val().trim() || null,
+      category: $('#m-category').val(),
+      group_number: $('#m-group_number').val() ? parseInt($('#m-group_number').val()) : null,
+      address: $('#m-address').val().trim() || null,
+      is_student: $('#m-is_student').prop('checked'),
+      entrance_fee_paid: $('#m-entrance_fee_paid').prop('checked'),
+      annual_fee_paid_until: annual_fee_paid_until,
+      is_next_year_free: is_next_year_free,
+      is_lead: $('#m-is_lead').prop('checked'),
+      gear_received_json: gear_received_json,
+      updated_by: operatorName
+   };
 
    let { error } = currentMemberId ?
       await _supabase.from('members').update(payload).eq('id', currentMemberId) :
@@ -820,6 +837,7 @@ async function submitMember() {
 
 
 // ─── 修正後的資料加載與綜合渲染 ───
+// ─── 修改後的資料加載與綜合渲染（含組長/組員欄位） ───
 async function loadMembers() {
    const { data, error } = await _supabase.from('vw_public_members').select('*');
    if (error) return;
@@ -847,7 +865,7 @@ async function loadMembers() {
    const sortedGroups = Array.from(groupsSet).sort((a, b) => a - b);
    let groupSelectHtml = `<option value="all">全部組別</option>`;
    $.each(sortedGroups, function(index, g) {
-      const groupText = groupMap.has(String(g)) ? groupMap.get(String(g)) : g + '組';
+      const groupText = (typeof groupMap !== 'undefined' && groupMap.has(String(g))) ? groupMap.get(String(g)) : g + '組';
       groupSelectHtml += `<option value="${g}">${groupText}</option>`;
    });
    groupSelectHtml += `<option value="none">未分組</option>`;
@@ -856,13 +874,13 @@ async function loadMembers() {
 
    // B. 渲染類別選單
    const sortedCategories = Array.from(categoriesSet).sort((a, b) => {
-      const textA = categoryMap.get(a) || a;
-      const textB = categoryMap.get(b) || b;
+      const textA = (typeof categoryMap !== 'undefined' && categoryMap.get(a)) || a;
+      const textB = (typeof categoryMap !== 'undefined' && categoryMap.get(b)) || b;
       return textA.localeCompare(textB, 'zh-TW');
    });
    let categorySelectHtml = `<option value="all">全部類別</option>`;
    $.each(sortedCategories, function(index, c) {
-      const categoryText = categoryMap.has(c) ? categoryMap.get(c) : c;
+      const categoryText = (typeof categoryMap !== 'undefined' && categoryMap.has(c)) ? categoryMap.get(c) : c;
       categorySelectHtml += `<option value="${c}">${categoryText}</option>`;
    });
    $categoryFilter.html(categorySelectHtml);
@@ -911,8 +929,8 @@ async function loadMembers() {
       if (currentSort.key === 'category') {
          if (!valA) return 1;
          if (!valB) return -1;
-         const textA = categoryMap.get(valA) || valA;
-         const textB = categoryMap.get(valB) || valB;
+         const textA = (typeof categoryMap !== 'undefined' && categoryMap.get(valA)) || valA;
+         const textB = (typeof categoryMap !== 'undefined' && categoryMap.get(valB)) || valB;
          return currentSort.asc ? textA.localeCompare(textB, 'zh-TW') : textB.localeCompare(textA, 'zh-TW');
       }
       return 0;
@@ -956,7 +974,7 @@ async function loadMembers() {
    $('#pagination-controls').html(paginationHtml);
 
 
-   // 6. 渲染表格結構
+   // 6. 渲染表格結構 (加入「職務身分」欄位)
    const categorySortIcon = currentSort.key === 'category' ? (currentSort.asc ? ' ▲' : ' ▼') : '';
    const groupSortIcon = currentSort.key === 'group_number' ? (currentSort.asc ? ' ▲' : ' ▼') : '';
 
@@ -965,24 +983,24 @@ async function loadMembers() {
       <table class="table table-hover align-middle">
          <thead>
             <tr>
-            <th>姓名</th>
-            <th>聯絡電話</th>
-            <th class="sort-th text-primary" data-key="category" style="cursor: pointer; user-select: none;">類別<small>${categorySortIcon}</small></th>
-            <th class="sort-th text-primary" data-key="group_number" style="cursor: pointer; user-select: none;">組別<small>${groupSortIcon}</small></th>
-            <th>職務身分</th>
-            <th>會費效期</th>
-            <th>操作</th>
+               <th>姓名</th>
+               <th>聯絡電話</th>
+               <th class="sort-th text-primary" data-key="category" style="cursor: pointer; user-select: none;">類別<small>${categorySortIcon}</small></th>
+               <th class="sort-th text-primary" data-key="group_number" style="cursor: pointer; user-select: none;">組別<small>${groupSortIcon}</small></th>
+               <th>職務身分</th>
+               <th>會費效期</th>
+               <th>操作</th>
             </tr>
          </thead>
          <tbody>`;
          
    $.each(pageData, function(index, m) {
       const memberJson = JSON.stringify(m).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-      const displayCategory = categoryMap.has(m.category) ? categoryMap.get(m.category) : (m.category || '-');
+      const displayCategory = (typeof categoryMap !== 'undefined' && categoryMap.has(m.category)) ? categoryMap.get(m.category) : (m.category || '-');
       
       let displayGroup = '-';
       if (m.group_number !== null && m.group_number !== undefined) {
-         displayGroup = groupMap.has(String(m.group_number)) ? groupMap.get(String(m.group_number)) : m.group_number + '組';
+         displayGroup = (typeof groupMap !== 'undefined' && groupMap.has(String(m.group_number))) ? groupMap.get(String(m.group_number)) : m.group_number + '組';
       }
 
       // 判斷 is_lead 狀態來顯示組長或組員
@@ -1101,10 +1119,34 @@ $(document).ready(function() {
       }
    });
    
-   $(document).on('click', '.edit-member-btn', function() {
-      const memberStr = $(this).attr('data-member');
-      openEditMemberModal(memberStr);
-   });
+	$(document).on('click', '.edit-member-btn', async function() {
+		// 1. 先取得原本存在按鈕上的基本資料 (為了拿到 id)
+		const memberBasic = JSON.parse($(this).attr('data-member'));
+		
+		// 為了避免連點，可以先將按鈕加上讀取狀態 (選用)
+		const $btn = $(this);
+		const originalHtml = $btn.html();
+		$btn.prop('disabled', true).html('<i class="bi bi-hourglass-split"></i>');
+		
+		// 2. 透過 id 向完整的 members 資料表抓取「所有詳細欄位」
+		const { data: fullMember, error } = await _supabase
+			.from('members')
+			.select('*')
+			.eq('id', memberBasic.id)
+			.single();
+			
+		// 恢復按鈕狀態
+		$btn.prop('disabled', false).html(originalHtml);
+		
+		if (error) {
+			console.error("讀取會員詳細資料失敗:", error);
+			alert("無法讀取會員詳細資料，請稍後再試。");
+			return;
+		}
+		
+		// 3. 將包含所有欄位的完整資料傳入 Modal
+		openEditMemberModal(JSON.stringify(fullMember));
+	});
 
    $(document).on('click', '.delete-member-btn', function() {
       const id = $(this).attr('data-id');
@@ -1583,7 +1625,17 @@ function buildDynamicFilters() {
     sortedYears.forEach(y => { yearHtml += `<option value="${y}">${y} 年</option>`; });
     $('#attendance-year-filter').html(yearHtml);
 
-    // B. 渲染月份下拉選單 (固定 01 ~ 12 月，或者依據現有資料收集，這裡採用固定 1~12 月更直覺)
+    // 【新增】取得今年年份並設定為預設查詢條件
+    const currentYear = new Date().getFullYear().toString();
+    
+    // 檢查現有資料中是否有今年，若沒有則額外補上選項，確保預設能選到今年
+    if (!yearsSet.has(currentYear)) {
+        $('#attendance-year-filter').append(`<option value="${currentYear}">${currentYear} 年</option>`);
+    }
+    // 設定下拉選單預設值為今年
+    $('#attendance-year-filter').val(currentYear);
+
+    // B. 渲染月份下拉選單 (固定 01 ~ 12 月)
     let monthHtml = '<option value="all">全部月份</option>';
     for (let m = 1; m <= 12; m++) {
         const mStr = String(m).padStart(2, '0');
@@ -1697,7 +1749,6 @@ function applyAttendanceFilters() {
                 <td><strong>${member.name || '-'}</strong></td>
                 <td>${displayGroup}</td>
                 <td>${displayActivity}</td>
-                <td><span class="text-monospace">${displayCheckIn}</span></td>
                 <td>${statusBadge}</td>
                 <td class="text-muted small">${item.notes || '-'}</td>
             </tr>

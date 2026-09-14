@@ -87,7 +87,7 @@
                 <h3 class="fw-bold text-primary mb-4">勤跑紀錄</h3>
                 <div class="row g-2 align-items-center flex-grow-1 me-md-2" style="max-width: 80%;">
                     <div class="col-12 col-md-4">
-                        <input type="text" id="attendance-search" class="form-control" placeholder="搜尋姓名、組別、活動名稱...">
+                        <input type="text" id="attendance-search" class="form-control" placeholder="搜尋姓名、活動名稱...">
                     </div>
                     <div class="col-4 col-md-2">
                         <select id="attendance-year-filter" class="form-select">
@@ -121,6 +121,7 @@
                         <th>組別</th>
                         <th>活動名稱 / 日期</th>
                         <th>狀態</th>
+                        <th>備註/請假事由</th>
                     </tr>
                     </thead>
                     <tbody id="attendance-list">
@@ -501,7 +502,17 @@ function buildDynamicFilters() {
     sortedYears.forEach(y => { yearHtml += `<option value="${y}">${y} 年</option>`; });
     $('#attendance-year-filter').html(yearHtml);
 
-    // B. 渲染月份下拉選單 (固定 01 ~ 12 月，或者依據現有資料收集，這裡採用固定 1~12 月更直覺)
+    // 【新增】取得今年年份並設定為預設查詢條件
+    const currentYear = new Date().getFullYear().toString();
+    
+    // 檢查現有資料中是否有今年，若沒有則額外補上選項，確保預設能選到今年
+    if (!yearsSet.has(currentYear)) {
+        $('#attendance-year-filter').append(`<option value="${currentYear}">${currentYear} 年</option>`);
+    }
+    // 設定下拉選單預設值為今年
+    $('#attendance-year-filter').val(currentYear);
+
+    // B. 渲染月份下拉選單 (固定 01 ~ 12 月)
     let monthHtml = '<option value="all">全部月份</option>';
     for (let m = 1; m <= 12; m++) {
         const mStr = String(m).padStart(2, '0');
@@ -615,7 +626,6 @@ function applyAttendanceFilters() {
                 <td><strong>${member.name || '-'}</strong></td>
                 <td>${displayGroup}</td>
                 <td>${displayActivity}</td>
-                <td><span class="text-monospace">${displayCheckIn}</span></td>
                 <td>${statusBadge}</td>
                 <td class="text-muted small">${item.notes || '-'}</td>
             </tr>
