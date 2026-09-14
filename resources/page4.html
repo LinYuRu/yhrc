@@ -86,6 +86,9 @@
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4 bg-light p-3 rounded border">
                 <h3 class="fw-bold text-primary mb-4">勤跑紀錄</h3>
                 <div class="row g-2 align-items-center flex-grow-1 me-md-2" style="max-width: 80%;">
+                    <div class="col-12 col-md-4">
+                        <input type="text" id="attendance-search" class="form-control" placeholder="搜尋姓名、組別、活動名稱...">
+                    </div>
                     <div class="col-4 col-md-2">
                         <select id="attendance-year-filter" class="form-select">
                             <option value="all">全部年份</option>
@@ -107,33 +110,6 @@
                     <button class="btn btn-primary" onclick="loadAttendanceReport()">
                         <i class="bi bi-arrow-clockwise me-1"></i>重新整理
                     </button>
-                </div>
-            </div>
-            
-            <div class="row g-3 mb-4">
-                <div class="col-md-4">
-                    <div class="card border-start border-primary border-4 shadow-sm">
-                        <div class="card-body py-3">
-                            <h6 class="card-subtitle text-muted mb-1 small fw-bold">本月應出席總人次</h6>
-                            <h3 class="card-title mb-0 fw-bold text-primary" id="stat-total-expected">0</h3>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card border-start border-success border-4 shadow-sm">
-                        <div class="card-body py-3">
-                            <h6 class="card-subtitle text-muted mb-1 small fw-bold">實際出席人次 (出席率)</h6>
-                            <h3 class="card-title mb-0 fw-bold text-success" id="stat-actual-attended">0 <span class="fs-6 fw-normal text-muted" id="stat-attendance-rate">(0%)</span></h3>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card border-start border-danger border-4 shadow-sm">
-                        <div class="card-body py-3">
-                            <h6 class="card-subtitle text-muted mb-1 small fw-bold">請假 / 缺席人次</h6>
-                            <h3 class="card-title mb-0 fw-bold text-danger" id="stat-total-absent">0</h3>
-                        </div>
-                    </div>
                 </div>
             </div>
             
@@ -423,6 +399,7 @@ async function loadMembers() {
  */
 function initAttendanceTab() {
     // 綁定輸入搜尋與各下拉選單的即時過濾事件（前端即時交叉過濾，免重複讀取資料庫）
+    $(document).on('input', '#attendance-search', applyAttendanceFilters);
     $(document).on('change', '#attendance-year-filter', applyAttendanceFilters);
     $(document).on('change', '#attendance-month-filter', applyAttendanceFilters);
     $(document).on('change', '#attendance-group-filter', applyAttendanceFilters);
@@ -548,6 +525,7 @@ function buildDynamicFilters() {
  * 4. 複合四條件過濾 (關鍵字 + 年份 + 月份 + 組別) 與統計計算
  */
 function applyAttendanceFilters() {
+    const keyword = $('#attendance-search').val().trim().toLowerCase();
     const selectedYear = $('#attendance-year-filter').val();
     const selectedMonth = $('#attendance-month-filter').val();
     const selectedGroup = $('#attendance-group-filter').val();
@@ -572,7 +550,18 @@ function applyAttendanceFilters() {
         if (selectedGroup !== 'all') {
             if (String(member.group_number) !== selectedGroup) return false;
         }
-        
+
+        // D. 關鍵字搜尋 (比對姓名、組別、活動名稱、備註)
+        if (keyword) {
+            const name = (member.name || '').toLowerCase();
+            const group = String(member.group_number || '');
+            const title = (activity.title || '').toLowerCase();
+            const notes = (item.notes || '').toLowerCase();
+            
+            if (!name.includes(keyword) && !group.includes(keyword) && !title.includes(keyword) && !notes.includes(keyword)) {
+                return false;
+            }
+        }
         return true;
     });
 
@@ -626,7 +615,9 @@ function applyAttendanceFilters() {
                 <td><strong>${member.name || '-'}</strong></td>
                 <td>${displayGroup}</td>
                 <td>${displayActivity}</td>
+                <td><span class="text-monospace">${displayCheckIn}</span></td>
                 <td>${statusBadge}</td>
+                <td class="text-muted small">${item.notes || '-'}</td>
             </tr>
         `;
     });

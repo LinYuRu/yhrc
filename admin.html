@@ -1503,7 +1503,7 @@ async function loadAttendanceReport() {
     `);
 
     try {
-        // 利用 Supabase 關聯查詢 (Join) 同步撈出活動與會員欄位
+        // 在這裡加上別名 (activities:vw_public_activities 與 members:vw_public_members)
         const { data, error } = await _supabase
             .from('vw_public_attendance')
             .select(`
@@ -1511,13 +1511,13 @@ async function loadAttendanceReport() {
                 status,
                 notes,
                 created_at,
-                vw_public_activities (
+                activities:vw_public_activities (
                     title,
                     activity_date,
                     location,
                     activity_type
                 ),
-                vw_public_members (
+                members:vw_public_members (
                     name,
                     group_number,
                     category
